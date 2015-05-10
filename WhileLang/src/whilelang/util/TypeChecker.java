@@ -107,7 +107,7 @@ public class TypeChecker {
 	public void check(Stmt.Assign stmt, Map<String, Type> environment) {
 		Type lhs = check(stmt.getLhs(), environment);
 		Type rhs = check(stmt.getRhs(), environment);
-		if (!lhs.equals(rhs)) {
+		if (!lhs.getClass().equals(rhs.getClass())) {
 			syntaxError("expected type " + lhs + ", found " + rhs,
 					file.filename, stmt.getRhs());
 		}
@@ -115,7 +115,9 @@ public class TypeChecker {
 
 	public void check(Stmt.Print stmt, Map<String, Type> environment) {
 		Type exprType = check(stmt.getExpr(), environment);
-		if(!(exprType instanceof Type.Strung)){
+		if (exprType instanceof Type.Bool) {
+
+		} else if (!(exprType instanceof Type.Strung)) {
 			syntaxError("expected type string, found " + exprType,
 					file.filename, stmt.getExpr());
 
@@ -126,8 +128,8 @@ public class TypeChecker {
 			Type returnType) {
 		Type exprType = check(stmt.getExpr(), environment);
 		if (returnType instanceof Type.Void && stmt.getExpr() != null) {
-			syntaxError("expected type null, found " + exprType,
-					file.filename, stmt.getExpr());
+			syntaxError("expected type null, found " + exprType, file.filename,
+					stmt.getExpr());
 		}
 		if (!returnType.equals(exprType))
 			syntaxError("expected type " + returnType + ", found " + exprType,
