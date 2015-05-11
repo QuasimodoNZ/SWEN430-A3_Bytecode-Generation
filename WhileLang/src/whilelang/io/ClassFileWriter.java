@@ -1,5 +1,6 @@
 package whilelang.io;
 
+import static whilelang.util.SyntaxError.internalFailure;
 import jasm.attributes.Code;
 import jasm.lang.Bytecode;
 import jasm.lang.ClassFile;
@@ -48,9 +49,12 @@ public class ClassFileWriter {
 	public void write(WhileFile sourceFile) throws IOException {
 		List<Modifier> modifiers = new ArrayList<Modifier>();
 		modifiers.add(Modifier.ACC_PUBLIC);
+		String className = sourceFile.filename;
+		className = className.substring(className.lastIndexOf('/') + 1,
+				className.lastIndexOf('.'));
 		jasm.lang.ClassFile cf = new ClassFile(49, new JvmType.Clazz("",
-				"Class name here"), JvmTypes.JAVA_LANG_OBJECT,
-				Collections.EMPTY_LIST, modifiers);
+				className), JvmTypes.JAVA_LANG_OBJECT, Collections.EMPTY_LIST,
+				modifiers);
 
 		// TODO: implement this method!!
 		for (Decl function : sourceFile.declarations) {
@@ -87,8 +91,9 @@ public class ClassFileWriter {
 		List<Bytecode> bytecodes = new ArrayList<Bytecode>();
 		addBytecodes(localIndexs, bytecodes, function.statements);
 
-		method.attributes().add(new Code(bytecodes, Collections.EMPTY_LIST, method));
-		
+		method.attributes().add(
+				new Code(bytecodes, Collections.EMPTY_LIST, method));
+
 		cf.methods().add(method);
 	}
 
@@ -111,24 +116,46 @@ public class ClassFileWriter {
 	private void addBytecodes(Map<String, Integer> localIndexs,
 			List<Bytecode> bytecodes, ArrayList<Stmt> statements) {
 		for (Stmt statement : statements) {
-			addBytecodes(localIndexs, bytecodes, statement);
+			addStmtBytecodes(localIndexs, bytecodes, statement);
 		}
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt statement) {
-		if (statement instanceof Stmt.VariableDeclaration) {
-			addBytecodes(localIndexs, bytecodes,
-					(Stmt.VariableDeclaration) statement);
-		} else if (statement instanceof Stmt.Assign) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.Assign) statement);
-		} else if (statement instanceof Stmt.Print) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.Print) statement);
+	private void addStmtBytecodes(Map<String, Integer> localIndexs,
+			List<Bytecode> bytecodes, Stmt stmt) {
+		if (stmt instanceof Stmt.VariableDeclaration) {
+		} else if (stmt instanceof Stmt.Assign) {
+		} else if (stmt instanceof Stmt.Print) {
 		}
-		// TODO Auto-generated method stub
+
+		if (stmt instanceof Stmt.Assign) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.Assign) stmt);
+		} else if (stmt instanceof Stmt.For) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.For) stmt);
+			// TODO
+		} else if (stmt instanceof Stmt.While) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.While) stmt);
+			// TODO
+		} else if (stmt instanceof Stmt.IfElse) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.IfElse) stmt);
+			// TODO
+		} else if (stmt instanceof Stmt.Return) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.Return) stmt);
+			// TODO
+		} else if (stmt instanceof Stmt.VariableDeclaration) {
+			addStmtBytecodes(localIndexs, bytecodes,
+					(Stmt.VariableDeclaration) stmt);
+		} else if (stmt instanceof Stmt.Print) {
+			addStmtBytecodes(localIndexs, bytecodes, (Stmt.Print) stmt);
+		} else if (stmt instanceof Expr.Invoke) {
+			JvmType type = addBytecodes(localIndexs, bytecodes, (Expr.Invoke) stmt);
+			// TODO may need to through away returned value
+			bytecodes.add(new Bytecode.Pop(type));
+		} else {
+			// TODO unknown statment type, we need to fail here
+		}
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
+	private void addStmtBytecodes(Map<String, Integer> localIndexs,
 			List<Bytecode> bytecodes, Stmt.VariableDeclaration statement) {
 		Expr expr = statement.getExpr();
 		JvmType type = null;
@@ -142,7 +169,7 @@ public class ClassFileWriter {
 		bytecodes.add(new Bytecode.Store(localIndexs.size() - 1, type));
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
+	private void addStmtBytecodes(Map<String, Integer> localIndexs,
 			List<Bytecode> bytecodes, Stmt.Assign statement) {
 		Expr rhs = statement.getRhs();
 		JvmType type = null;
@@ -162,8 +189,8 @@ public class ClassFileWriter {
 
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.Print statement) {
+	private void addStmtBytecodes(Map<String, Integer> localIndexs,
+			List<Bytecode> bytecodes, Stmt.Print stmt) {
 
 		JvmType.Clazz JAVA_LANG_SYSTEM = new JvmType.Clazz("java.lang",
 				"system"), JAVA_IO_PRINTSTREAM = new JvmType.Clazz("java.io",
@@ -172,23 +199,70 @@ public class ClassFileWriter {
 		bytecodes.add(new Bytecode.GetField(JAVA_LANG_SYSTEM, "out",
 				JAVA_IO_PRINTSTREAM, Bytecode.FieldMode.STATIC));
 
-		Expr expr = statement.getExpr();
-		JvmType type = null;
-		if (expr instanceof Expr.Constant) {
-			bytecodes.add(new Bytecode.LoadConst(((Expr.Constant) expr)
-					.getValue()));
-			type = getJvmType(((Expr.Constant) expr).getValue());
-		} else if (expr instanceof Expr.Variable) {
-			type = getJvmType(((Expr.Variable) expr).attributes());
-			bytecodes.add(new Bytecode.Load(localIndexs
-					.get(((Expr.Variable) expr).getName()), type));
-		}
+		// String str = toString(execute(stmt.getExpr(),frame));
+		// execute expression leaving value on top returning the JvmType of the
+		// value
+		JvmType type = addBytecodes(localIndexs, bytecodes, stmt.getExpr());
+
+		// System.out.println(str);
 
 		bytecodes
 				.add(new Bytecode.Invoke(JAVA_IO_PRINTSTREAM, "println",
 						new JvmType.Function(JvmTypes.T_VOID,
 								JvmTypes.JAVA_LANG_STRING),
 						Bytecode.InvokeMode.VIRTUAL));
+
+	}
+
+	/**
+	 * Adds bytecodes for executing the expression so that the top result on the
+	 * stack is the resulting value
+	 * 
+	 * @param localIndexs
+	 * @param bytecodes
+	 * @param expr
+	 */
+	private JvmType addBytecodes(Map<String, Integer> localIndexs,
+			List<Bytecode> bytecodes, Expr expr) {
+		JvmType type;
+		// TODO Auto-generated method stub
+		if (expr instanceof Expr.Constant) {
+			bytecodes.add(new Bytecode.LoadConst(((Expr.Constant) expr)
+					.getValue()));
+			type = getJvmType(((Expr.Constant) expr).getValue());
+		} else if (expr instanceof Expr.Variable) {
+		}
+
+		if (expr instanceof Expr.Binary) {
+			// return execute((Expr.Binary) expr,frame);
+		} else if (expr instanceof Expr.Cast) {
+			// return execute((Expr.Cast) expr,frame);
+		} else if (expr instanceof Expr.Constant) {
+			bytecodes.add(new Bytecode.LoadConst(((Expr.Constant) expr)
+					.getValue()));
+			type = getJvmType(((Expr.Constant) expr).getValue());
+		} else if (expr instanceof Expr.Invoke) {
+			// return execute((Expr.Invoke) expr,frame);
+		} else if (expr instanceof Expr.IndexOf) {
+			// return execute((Expr.IndexOf) expr,frame);
+		} else if (expr instanceof Expr.ListConstructor) {
+			// return execute((Expr.ListConstructor) expr,frame);
+		} else if (expr instanceof Expr.RecordAccess) {
+			// return execute((Expr.RecordAccess) expr,frame);
+		} else if (expr instanceof Expr.RecordConstructor) {
+			// return execute((Expr.RecordConstructor) expr,frame);
+		} else if (expr instanceof Expr.Unary) {
+			// return execute((Expr.Unary) expr,frame);
+		} else if (expr instanceof Expr.Variable) {
+			type = getJvmType(((Expr.Variable) expr).attributes());
+			bytecodes.add(new Bytecode.Load(localIndexs
+					.get(((Expr.Variable) expr).getName()), type));
+			// return execute((Expr.Variable) expr,frame);
+		} else {
+			// TODO unknown expression type, should through a compile error
+		}
+		type = null;
+		return type;
 
 	}
 
