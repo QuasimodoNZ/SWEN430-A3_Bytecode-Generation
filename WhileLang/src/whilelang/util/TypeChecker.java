@@ -115,7 +115,8 @@ public class TypeChecker {
 
 	public void check(Stmt.Print stmt, Map<String, Type> environment) {
 		Type exprType = check(stmt.getExpr(), environment);
-		if (exprType instanceof Type.Bool) {
+		if (exprType instanceof Type.Bool || exprType instanceof Type.Char
+				|| exprType instanceof Type.Int) {
 
 		} else if (!(exprType instanceof Type.Strung)) {
 			syntaxError("expected type string, found " + exprType,
@@ -131,7 +132,7 @@ public class TypeChecker {
 			syntaxError("expected type null, found " + exprType, file.filename,
 					stmt.getExpr());
 		}
-		if (!returnType.equals(exprType))
+		if (!returnType.getClass().equals(exprType.getClass()))
 			syntaxError("expected type " + returnType + ", found " + exprType,
 					file.filename, stmt.getExpr());
 	}

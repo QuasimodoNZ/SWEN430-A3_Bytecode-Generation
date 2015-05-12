@@ -68,24 +68,22 @@ public class ClassFileWriter {
 	}
 
 	private void addMethod(ClassFile cf, FunDecl function) {
+		MethodPage mp = new MethodPage();
+
 		// TODO need to figure out return types, parameters and also modifiers
 		String methodName = function.name();
 		JvmType returnType = getJvmType(function.ret);
 
-		Map<String, Integer> localIndexs = new HashMap<String, Integer>();
-		if (!methodName.equalsIgnoreCase("main"))
-			localIndexs.put("this", 0);
-
 		List<JvmType> parameters = new ArrayList<JvmType>();
 		for (Parameter param : function.parameters) {
 			parameters.add(getJvmType(param.type));
-			localIndexs.put(param.name(), localIndexs.size());
+			mp.put(param.name(), jvmTypeSize(getJvmType(param.type)));
 		}
 
 		List<Modifier> modifiers = new ArrayList<Modifier>();
+		modifiers.add(Modifier.ACC_PUBLIC);
+		modifiers.add(Modifier.ACC_STATIC);
 		if (methodName.equals("main")) {
-			modifiers.add(Modifier.ACC_PUBLIC);
-			modifiers.add(Modifier.ACC_STATIC);
 			parameters.add(new JvmType.Array(JvmTypes.JAVA_LANG_STRING));
 		}
 
@@ -93,12 +91,11 @@ public class ClassFileWriter {
 		ClassFile.Method method = new ClassFile.Method(methodName, func,
 				modifiers);
 
-		List<Bytecode> bytecodes = new ArrayList<Bytecode>();
-		addBytecodes(localIndexs, bytecodes, function.statements);
-		bytecodes.add(new Bytecode.Return(null));
+		addBytecodes(function.statements, mp);
+		mp.bc.add(new Bytecode.Return(null));
 
-		method.attributes().add(
-				new Code(bytecodes, Collections.EMPTY_LIST, method));
+		method.attributes()
+				.add(new Code(mp.bc, Collections.EMPTY_LIST, method));
 
 		cf.methods().add(method);
 	}
@@ -113,52 +110,47 @@ public class ClassFileWriter {
 	 *            statements that need to be converted to bytecodes
 	 * @return
 	 */
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, ArrayList<Stmt> statements) {
+	private void addBytecodes(ArrayList<Stmt> statements, MethodPage mp) {
 		for (Stmt statement : statements) {
-			addBytecodes(localIndexs, bytecodes, statement);
+			addBytecodes(statement, mp);
 		}
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt stmt) {
+	private void addBytecodes(Stmt stmt, MethodPage mp) {
 		if (stmt instanceof Stmt.Assign) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.Assign) stmt);
+			addBytecodes((Stmt.Assign) stmt, mp);
 		} else if (stmt instanceof Stmt.For) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.For) stmt);
+			addBytecodes((Stmt.For) stmt, mp);
 			// TODO
 		} else if (stmt instanceof Stmt.While) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.While) stmt);
+			addBytecodes((Stmt.While) stmt, mp);
 			// TODO
 		} else if (stmt instanceof Stmt.IfElse) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.IfElse) stmt);
+			addBytecodes((Stmt.IfElse) stmt, mp);
 			// TODO
 		} else if (stmt instanceof Stmt.Return) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.Return) stmt);
+			addBytecodes((Stmt.Return) stmt, mp);
 			// TODO
 		} else if (stmt instanceof Stmt.VariableDeclaration) {
-			addBytecodes(localIndexs, bytecodes,
-					(Stmt.VariableDeclaration) stmt);
+			addBytecodes((Stmt.VariableDeclaration) stmt, mp);
 		} else if (stmt instanceof Stmt.Print) {
-			addBytecodes(localIndexs, bytecodes, (Stmt.Print) stmt);
+			addBytecodes((Stmt.Print) stmt, mp);
 		} else if (stmt instanceof Expr.Invoke) {
-			JvmType type = addBytecodes(localIndexs, bytecodes,
-					(Expr.Invoke) stmt);
+			JvmType type = addBytecodes((Expr.Invoke) stmt, mp);
 			// TODO may need to through away returned value
-			bytecodes.add(new Bytecode.Pop(type));
+			mp.bc.add(new Bytecode.Pop(type));
 		} else {
 			// TODO unknown statement type, we need to fail here
 		}
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.Assign statement) {
+	private void addBytecodes(Stmt.Assign statement, MethodPage mp) {
 		Expr rhs = statement.getRhs();
-		JvmType type = addBytecodes(localIndexs, bytecodes, rhs);
+		JvmType type = addBytecodes(rhs, mp);
 
 		LVal lhs = statement.getLhs();
 		if (lhs instanceof Expr.Variable) {
-			bytecodes.add(new Bytecode.Store(localIndexs
+			mp.bc.add(new Bytecode.Store(mp.localIndexs
 					.get(((Expr.Variable) lhs).getName()), type));
 		}
 		// TODO index of
@@ -166,55 +158,53 @@ public class ClassFileWriter {
 
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.For statement) {
-		addBytecodes(localIndexs, bytecodes, statement.getDeclaration());
-		addBytecodes(localIndexs, bytecodes, statement.getCondition());
+	private void addBytecodes(Stmt.For statement, MethodPage mp) {
+		addBytecodes(statement.getDeclaration(), mp);
+		addBytecodes(statement.getCondition(), mp);
 
 		// TODO fill out this method
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.While statement) {
+	private void addBytecodes(Stmt.While statement, MethodPage mp) {
 		// TODO fill out this method
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.IfElse statement) {
+	private void addBytecodes(Stmt.IfElse stmt, MethodPage mp) {
+		addBytecodes(stmt.getCondition(), mp);
+		
+		
 		// TODO fill out this method
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.Return statement) {
+	private void addBytecodes(Stmt.Return statement, MethodPage mp) {
 		// TODO fill out this method
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.VariableDeclaration statement) {
-		JvmType type = addBytecodes(localIndexs, bytecodes, statement.getExpr());
+	private void addBytecodes(Stmt.VariableDeclaration statement, MethodPage mp) {
+		JvmType type = addBytecodes(statement.getExpr(), mp);
 
-		localIndexs.put(statement.getName(), localIndexs.size());
-		bytecodes.add(new Bytecode.Store(localIndexs.size() - 1, type));
+		mp.put(statement.getName(), jvmTypeSize(type));
+		mp.bc.add(new Bytecode.Store(mp.localIndexs.get(statement.getName()),
+				type));
 	}
 
-	private void addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Stmt.Print stmt) {
+	private void addBytecodes(Stmt.Print stmt, MethodPage mp) {
 
 		JvmType.Clazz JAVA_LANG_SYSTEM = new JvmType.Clazz("java.lang",
 				"System"), JAVA_IO_PRINTSTREAM = new JvmType.Clazz("java.io",
 				"PrintStream");
 
-		bytecodes.add(new Bytecode.GetField(JAVA_LANG_SYSTEM, "out",
+		mp.bc.add(new Bytecode.GetField(JAVA_LANG_SYSTEM, "out",
 				JAVA_IO_PRINTSTREAM, Bytecode.FieldMode.STATIC));
 
 		// String str = toString(execute(stmt.getExpr(),frame));
 		// execute expression leaving value on top returning the JvmType of the
 		// value
-		JvmType type = addBytecodes(localIndexs, bytecodes, stmt.getExpr());
+		JvmType type = addBytecodes(stmt.getExpr(), mp);
 
 		// System.out.println(str);
 
-		bytecodes.add(new Bytecode.Invoke(JAVA_IO_PRINTSTREAM, "println",
+		mp.bc.add(new Bytecode.Invoke(JAVA_IO_PRINTSTREAM, "println",
 				new JvmType.Function(JvmTypes.T_VOID, type),
 				Bytecode.InvokeMode.VIRTUAL));
 	}
@@ -227,116 +217,126 @@ public class ClassFileWriter {
 	 * @param bytecodes
 	 * @param expr
 	 */
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr expr) {
+	private JvmType addBytecodes(Expr expr, MethodPage mp) {
 		if (expr instanceof Expr.Binary) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Binary) expr);
+			return addBytecodes((Expr.Binary) expr, mp);
 		} else if (expr instanceof Expr.Cast) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Cast) expr);
+			return addBytecodes((Expr.Cast) expr, mp);
 		} else if (expr instanceof Expr.Constant) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Constant) expr);
+			return addBytecodes((Expr.Constant) expr, mp);
 		} else if (expr instanceof Expr.Invoke) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Invoke) expr);
+			return addBytecodes((Expr.Invoke) expr, mp);
 		} else if (expr instanceof Expr.IndexOf) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.IndexOf) expr);
+			return addBytecodes((Expr.IndexOf) expr, mp);
 		} else if (expr instanceof Expr.ListConstructor) {
-			return addBytecodes(localIndexs, bytecodes,
-					(Expr.ListConstructor) expr);
+			return addBytecodes((Expr.ListConstructor) expr, mp);
 		} else if (expr instanceof Expr.RecordAccess) {
-			return addBytecodes(localIndexs, bytecodes,
-					(Expr.RecordAccess) expr);
+			return addBytecodes((Expr.RecordAccess) expr, mp);
 		} else if (expr instanceof Expr.RecordConstructor) {
-			return addBytecodes(localIndexs, bytecodes,
-					(Expr.RecordConstructor) expr);
+			return addBytecodes((Expr.RecordConstructor) expr, mp);
 		} else if (expr instanceof Expr.Unary) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Unary) expr);
+			return addBytecodes((Expr.Unary) expr, mp);
 		} else if (expr instanceof Expr.Variable) {
-			return addBytecodes(localIndexs, bytecodes, (Expr.Variable) expr);
+			return addBytecodes((Expr.Variable) expr, mp);
 		} else {
 			// TODO unknown expression type, should through a compile error
 			return null;
 		}
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Binary expr) {
+	private JvmType addBytecodes(Expr.Binary expr, MethodPage mp) {
 		// TODO
-		JvmType lhs = addBytecodes(localIndexs, bytecodes, expr.getLhs()), rhs = addBytecodes(localIndexs, bytecodes, expr.getRhs());
-		JvmType.Bool type;
-		switch(expr.getOp()){
+		JvmType lhs = addBytecodes(expr.getLhs(), mp), rhs = addBytecodes(
+				expr.getRhs(), mp);
+
+		// TODO test the types, if the are not the same like integer and double
+		// or float then we need to cast them and then try again
+
+		JvmType type = lhs;
+		switch (expr.getOp()) {
 		case AND:
 			type = new JvmType.Bool();
-			bytecodes.add(new Bytecode.BinOp(Bytecode.BinOp.AND, type));
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.AND, type));
 			return type;
 		case OR:
 			type = new JvmType.Bool();
-			bytecodes.add(new Bytecode.BinOp(Bytecode.BinOp.OR, type));
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.OR, type));
 			return type;
-
+		case ADD:// TODO
+		case SUB:// TODO
+		case MUL:// TODO
+		case DIV:// TODO
+		case REM:// TODO
+		case EQ:// TODO
+			String trueLabel = mp.next(),
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.EQ, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
+		case NEQ:// TODO
+		case LT:// TODO
+		case LTEQ:// TODO
+		case GT:// TODO
+		case GTEQ:// TODO
+		case APPEND:// TODO
 		}
-		
+
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Cast expr) {
-		// TODO
-		return null;
+	private JvmType addBytecodes(Expr.Cast expr, MethodPage mp) {
+		addBytecodes(expr.getSource(), mp);
+		return getJvmType(expr.getType());
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Constant expr) {
-		bytecodes
-				.add(new Bytecode.LoadConst(((Expr.Constant) expr).getValue()));
+	private JvmType addBytecodes(Expr.Constant expr, MethodPage mp) {
+		mp.bc.add(new Bytecode.LoadConst(((Expr.Constant) expr).getValue()));
 		return getJvmType(((Expr.Constant) expr).getValue());
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Invoke expr) {
+	private JvmType addBytecodes(Expr.Invoke expr, MethodPage mp) {
 		// TODO
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.IndexOf expr) {
+	private JvmType addBytecodes(Expr.IndexOf expr, MethodPage mp) {
 		// TODO
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.ListConstructor expr) {
+	private JvmType addBytecodes(Expr.ListConstructor expr, MethodPage mp) {
 		// TODO
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.RecordAccess expr) {
+	private JvmType addBytecodes(Expr.RecordAccess expr, MethodPage mp) {
 		// TODO
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.RecordConstructor expr) {
+	private JvmType addBytecodes(Expr.RecordConstructor expr, MethodPage mp) {
 		// TODO
 		return null;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Unary expr) {
-		JvmType type = addBytecodes(localIndexs, bytecodes, expr.getExpr());
-		switch (expr.getOp()){
+	private JvmType addBytecodes(Expr.Unary expr, MethodPage mp) {
+		JvmType type = addBytecodes(expr.getExpr(), mp);
+		switch (expr.getOp()) {
 		case NOT:
-			bytecodes.add(new Bytecode.LoadConst(true));
-			bytecodes.add(new Bytecode.BinOp(Bytecode.BinOp.XOR, type));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.XOR, type));
 		}
 		// TODO
 		return type;
 	}
 
-	private JvmType addBytecodes(Map<String, Integer> localIndexs,
-			List<Bytecode> bytecodes, Expr.Variable expr) {
+	private JvmType addBytecodes(Expr.Variable expr, MethodPage mp) {
 		JvmType type = getJvmType(((Expr.Variable) expr).attributes());
-		bytecodes.add(new Bytecode.Load(localIndexs.get(((Expr.Variable) expr)
+		mp.bc.add(new Bytecode.Load(mp.localIndexs.get(((Expr.Variable) expr)
 				.getName()), type));
 		return type;
 	}
@@ -365,5 +365,35 @@ public class ClassFileWriter {
 		}
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	private int jvmTypeSize(JvmType type) {
+		// TODO Auto-generated method stub
+		return 1;
+	}
+
+	private class MethodPage {
+
+		public List<Bytecode> bc;
+		public Map<String, Integer> localIndexs;
+		public int nextIndex;
+		private int labelCounter;
+
+		private MethodPage() {
+			localIndexs = new HashMap<String, Integer>();
+			nextIndex = 0;
+			bc = new ArrayList<Bytecode>();
+			labelCounter = 0;
+		}
+
+		private void put(String name, int typeSize) {
+			localIndexs.put(name, nextIndex);
+			nextIndex += typeSize;
+		}
+
+		private String next() {
+			return "label-" + labelCounter++;
+		}
+
 	}
 }
