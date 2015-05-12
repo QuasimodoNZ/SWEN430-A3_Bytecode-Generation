@@ -13,7 +13,7 @@ public class ClassFileValidTests extends TestHarness {
  @Test public void BoolAssign_Valid_2() { runClassFileTest("BoolAssign_Valid_2"); }
  @Test public void BoolAssign_Valid_3() { runClassFileTest("BoolAssign_Valid_3"); } 
  @Test public void BoolAssign_Valid_4() { runClassFileTest("BoolAssign_Valid_4"); } 
- @Test public void BoolAssign_Valid_4() { runClassFileTest("BoolAssign_Valid_5"); } 
+ @Test public void BoolAssign_Valid_5() { runClassFileTest("BoolAssign_Valid_5"); } 
  @Test public void BoolIfElse_Valid_1() { runClassFileTest("BoolIfElse_Valid_1"); }
  @Test public void BoolIfElse_Valid_2() { runClassFileTest("BoolIfElse_Valid_2"); } 
  @Test public void BoolList_Valid_1() { runClassFileTest("BoolList_Valid_1"); } 

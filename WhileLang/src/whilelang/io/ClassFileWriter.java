@@ -4,6 +4,7 @@ import static whilelang.util.SyntaxError.internalFailure;
 import jasm.attributes.Code;
 import jasm.lang.Bytecode;
 import jasm.lang.Bytecode.BinOp;
+import jasm.lang.Bytecode.Label;
 import jasm.lang.Bytecode.LoadConst;
 import jasm.lang.ClassFile;
 import jasm.lang.ClassFile.Method;
@@ -110,7 +111,7 @@ public class ClassFileWriter {
 	 *            statements that need to be converted to bytecodes
 	 * @return
 	 */
-	private void addBytecodes(ArrayList<Stmt> statements, MethodPage mp) {
+	private void addBytecodes(List<Stmt> statements, MethodPage mp) {
 		for (Stmt statement : statements) {
 			addBytecodes(statement, mp);
 		}
@@ -130,7 +131,6 @@ public class ClassFileWriter {
 			// TODO
 		} else if (stmt instanceof Stmt.Return) {
 			addBytecodes((Stmt.Return) stmt, mp);
-			// TODO
 		} else if (stmt instanceof Stmt.VariableDeclaration) {
 			addBytecodes((Stmt.VariableDeclaration) stmt, mp);
 		} else if (stmt instanceof Stmt.Print) {
@@ -171,13 +171,28 @@ public class ClassFileWriter {
 
 	private void addBytecodes(Stmt.IfElse stmt, MethodPage mp) {
 		addBytecodes(stmt.getCondition(), mp);
-		
-		
-		// TODO fill out this method
+
+		String falseLabel = mp.next(), endLabel = mp.next();
+		mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.NE, new JvmType.Bool(),
+				falseLabel));
+
+		// execute true branch
+		addBytecodes(stmt.getTrueBranch(), mp);
+		// goto end label
+		mp.bc.add(new Bytecode.Goto(endLabel));
+		// false branchlabel
+		mp.bc.add(new Bytecode.Label(falseLabel));
+		// false branch
+		if (stmt.getFalseBranch().size() != 0) {
+			addBytecodes(stmt.getFalseBranch(), mp);
+		}
+		// end label
+		mp.bc.add(new Bytecode.Label(endLabel));
 	}
 
 	private void addBytecodes(Stmt.Return statement, MethodPage mp) {
-		// TODO fill out this method
+		JvmType type = addBytecodes(statement.getExpr(), mp);
+		mp.bc.add(new Bytecode.Return(type));
 	}
 
 	private void addBytecodes(Stmt.VariableDeclaration statement, MethodPage mp) {
@@ -249,10 +264,15 @@ public class ClassFileWriter {
 		JvmType lhs = addBytecodes(expr.getLhs(), mp), rhs = addBytecodes(
 				expr.getRhs(), mp);
 
+		// if(lhs.getClass().equals(rhs.getClass())){}else if(lhs instanceof
+		// JvmType.Int && rhs instanceof )
+
 		// TODO test the types, if the are not the same like integer and double
 		// or float then we need to cast them and then try again
 
 		JvmType type = lhs;
+		String trueLabel, endLabel;
+
 		switch (expr.getOp()) {
 		case AND:
 			type = new JvmType.Bool();
@@ -263,12 +283,22 @@ public class ClassFileWriter {
 			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.OR, type));
 			return type;
 		case ADD:// TODO
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.ADD, type));
+			return type;
 		case SUB:// TODO
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.SUB, type));
+			return type;
 		case MUL:// TODO
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.MUL, type));
+			return type;
 		case DIV:// TODO
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.DIV, type));
+			return type;
 		case REM:// TODO
+			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.REM, type));
+			return type;
 		case EQ:// TODO
-			String trueLabel = mp.next(),
+			trueLabel = mp.next();
 			endLabel = mp.next();
 			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.EQ, type, trueLabel));
 			mp.bc.add(new Bytecode.LoadConst(false));
@@ -278,10 +308,55 @@ public class ClassFileWriter {
 			mp.bc.add(new Bytecode.Label(endLabel));
 			return new JvmType.Bool();
 		case NEQ:// TODO
+			trueLabel = mp.next();
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.NE, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
 		case LT:// TODO
+			trueLabel = mp.next();
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.LT, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
 		case LTEQ:// TODO
+			trueLabel = mp.next();
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.LE, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
 		case GT:// TODO
+			trueLabel = mp.next();
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.GT, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
 		case GTEQ:// TODO
+			trueLabel = mp.next();
+			endLabel = mp.next();
+			mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.GE, type, trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(false));
+			mp.bc.add(new Bytecode.Goto(endLabel));
+			mp.bc.add(new Bytecode.Label(trueLabel));
+			mp.bc.add(new Bytecode.LoadConst(true));
+			mp.bc.add(new Bytecode.Label(endLabel));
+			return new JvmType.Bool();
 		case APPEND:// TODO
 		}
 
@@ -352,15 +427,21 @@ public class ClassFileWriter {
 	}
 
 	private JvmType getJvmType(Object value) {
-		if (value instanceof Boolean
-				|| value instanceof whilelang.lang.Type.Bool) {
+		if (value instanceof Type.Null) {
+			return new JvmType.Null();
+		} else if (value instanceof Boolean || value instanceof Type.Bool) {
 			return new JvmType.Bool();
-		} else if (value instanceof String
-				|| value instanceof whilelang.lang.Type.Strung) {
+		} else if (value instanceof Character || value instanceof Type.Char) {
+			return new JvmType.Char();
+		} else if (value instanceof Integer || value instanceof Type.Int) {
+			return new JvmType.Int();
+		} else if (value instanceof Double || value instanceof Type.Real) {
+			return new JvmType.Double();
+		} else if (value instanceof String || value instanceof Type.Strung) {
 			return JvmTypes.JAVA_LANG_STRING;
 		}
 
-		else if (value instanceof whilelang.lang.Type.Void) {
+		else if (value instanceof Type.Void) {
 			return new JvmType.Void();
 		}
 		// TODO Auto-generated method stub
@@ -368,7 +449,8 @@ public class ClassFileWriter {
 	}
 
 	private int jvmTypeSize(JvmType type) {
-		// TODO Auto-generated method stub
+		if (type instanceof JvmType.Long || type instanceof JvmType.Double)
+			return 2;
 		return 1;
 	}
 
@@ -393,6 +475,10 @@ public class ClassFileWriter {
 
 		private String next() {
 			return "label-" + labelCounter++;
+		}
+
+		public String toString() {
+			return bc.toString();
 		}
 
 	}
