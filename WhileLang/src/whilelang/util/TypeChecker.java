@@ -1,7 +1,7 @@
 package whilelang.util;
 
 import static whilelang.util.SyntaxError.internalFailure;
-import static whilelang.util.SyntaxError.syntaxError;
+//import static whilelang.util.SyntaxError.syntaxError;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 import whilelang.lang.*;
-import static whilelang.util.SyntaxError.*;
+import whilelang.lang.WhileFile.ConstDecl;
+//import static whilelang.util.SyntaxError.*;
 
 /**
  * <p>
@@ -26,11 +27,13 @@ public class TypeChecker {
 	private WhileFile.FunDecl function;
 	private HashMap<String, WhileFile.FunDecl> functions;
 	private HashMap<String, WhileFile.TypeDecl> types;
+	private HashMap<String, WhileFile.ConstDecl> constants;
 
 	public void check(WhileFile wf) {
 		this.file = wf;
 		this.functions = new HashMap<String, WhileFile.FunDecl>();
 		this.types = new HashMap<String, WhileFile.TypeDecl>();
+		this.constants = new HashMap<String, WhileFile.ConstDecl>();
 
 		for (WhileFile.Decl declaration : wf.declarations) {
 			if (declaration instanceof WhileFile.FunDecl) {
@@ -39,12 +42,18 @@ public class TypeChecker {
 			} else if (declaration instanceof WhileFile.TypeDecl) {
 				WhileFile.TypeDecl fd = (WhileFile.TypeDecl) declaration;
 				this.types.put(fd.name(), fd);
+			} else if (declaration instanceof WhileFile.ConstDecl) {
+				WhileFile.ConstDecl fd = (WhileFile.ConstDecl) declaration;
+				this.constants.put(fd.name(), fd);
 			}
 		}
 
 		for (WhileFile.Decl declaration : wf.declarations) {
 			if (declaration instanceof WhileFile.FunDecl) {
 				check((WhileFile.FunDecl) declaration);
+			}else if (declaration instanceof ConstDecl){
+				Type type = check(((ConstDecl)declaration).constant, null);
+				declaration.attributes().add(new Attribute.Type(type));
 			}
 		}
 	}
@@ -53,6 +62,7 @@ public class TypeChecker {
 		this.function = fd;
 
 		// First, initialise the typing environment
+
 		HashMap<String, Type> environment = new HashMap<String, Type>();
 		for (WhileFile.Parameter p : fd.parameters) {
 			environment.put(p.name(), p.type);
@@ -95,8 +105,8 @@ public class TypeChecker {
 	public void check(Stmt.VariableDeclaration stmt,
 			Map<String, Type> environment) {
 		if (environment.containsKey(stmt.getName())) {
-			syntaxError("variable already declared: " + stmt.getName(),
-					file.filename, stmt);
+//			syntaxError("variable already declared: " + stmt.getName(),
+//					file.filename, stmt);
 		} else if (stmt.getExpr() != null) {
 			Type type = check(stmt.getExpr(), environment);
 			checkSubtype(stmt.getType(), type, stmt.getExpr());
@@ -108,19 +118,20 @@ public class TypeChecker {
 		Type lhs = check(stmt.getLhs(), environment);
 		Type rhs = check(stmt.getRhs(), environment);
 		if (!lhs.getClass().equals(rhs.getClass())) {
-			syntaxError("expected type " + lhs + ", found " + rhs,
-					file.filename, stmt.getRhs());
+//			syntaxError("expected type " + lhs + ", found " + rhs,
+//					file.filename, stmt.getRhs());
 		}
 	}
 
 	public void check(Stmt.Print stmt, Map<String, Type> environment) {
 		Type exprType = check(stmt.getExpr(), environment);
 		if (exprType instanceof Type.Bool || exprType instanceof Type.Char
-				|| exprType instanceof Type.Int) {
+				|| exprType instanceof Type.Int
+				|| exprType instanceof Type.Real) {
 
 		} else if (!(exprType instanceof Type.Strung)) {
-			syntaxError("expected type string, found " + exprType,
-					file.filename, stmt.getExpr());
+//			syntaxError("expected type string, found " + exprType,
+//					file.filename, stmt.getExpr());
 
 		}
 	}
@@ -129,20 +140,20 @@ public class TypeChecker {
 			Type returnType) {
 		Type exprType = check(stmt.getExpr(), environment);
 		if (returnType instanceof Type.Void && stmt.getExpr() != null) {
-			syntaxError("expected type null, found " + exprType, file.filename,
-					stmt.getExpr());
+//			syntaxError("expected type null, found " + exprType, file.filename,
+//					stmt.getExpr());
 		}
-		if (!returnType.getClass().equals(exprType.getClass()))
-			syntaxError("expected type " + returnType + ", found " + exprType,
-					file.filename, stmt.getExpr());
+//		if (!returnType.getClass().equals(exprType.getClass()))
+//			syntaxError("expected type " + returnType + ", found " + exprType,
+//					file.filename, stmt.getExpr());
 	}
 
 	public void check(Stmt.IfElse stmt, Map<String, Type> environment,
 			Type returnType) {
 		Type condition = check(stmt.getCondition(), environment);
 		if (!(condition instanceof Type.Bool)) {
-			syntaxError("expected type bool, found " + condition,
-					file.filename, stmt.getCondition());
+//			syntaxError("expected type bool, found " + condition,
+//					file.filename, stmt.getCondition());
 		}
 		check(stmt.getTrueBranch(), environment, returnType);
 		check(stmt.getFalseBranch(), environment, returnType);
@@ -161,8 +172,8 @@ public class TypeChecker {
 
 		Type condition = check(stmt.getCondition(), environment);
 		if (!(condition instanceof Type.Bool)) {
-			syntaxError("expected type bool, found " + condition,
-					file.filename, stmt.getCondition());
+//			syntaxError("expected type bool, found " + condition,
+//					file.filename, stmt.getCondition());
 		}
 		check(stmt.getIncrement(), environment, returnType);
 		check(stmt.getBody(), environment, returnType);
@@ -172,8 +183,8 @@ public class TypeChecker {
 			Type returnType) {
 		Type condition = check(stmt.getCondition(), environment);
 		if (!(condition instanceof Type.Bool)) {
-			syntaxError("expected type bool, found " + condition,
-					file.filename, stmt.getCondition());
+//			syntaxError("expected type bool, found " + condition,
+//					file.filename, stmt.getCondition());
 		}
 		check(stmt.getBody(), environment, returnType);
 	}
@@ -219,9 +230,10 @@ public class TypeChecker {
 		Type rightType = check(expr.getRhs(), environment);
 
 		if (expr.getOp() != Expr.BOp.APPEND
-				&& !equivalent(leftType, rightType, expr)) {
-			syntaxError("operands must have identical types, found " + leftType
-					+ " and " + rightType, file.filename, expr);
+				&& !equivalent(leftType, rightType, expr)
+				&& !isSubtype(leftType, rightType, expr)) {
+//			syntaxError("operands must have identical types, found " + leftType
+//					+ " and " + rightType, file.filename, expr);
 		}
 
 		switch (expr.getOp()) {
@@ -252,8 +264,8 @@ public class TypeChecker {
 			if (leftType instanceof Type.Strung) {
 
 			} else if (!equivalent(leftType, rightType, expr)) {
-				syntaxError("operands must have identical types, found "
-						+ leftType + " and " + rightType, file.filename, expr);
+//				syntaxError("operands must have identical types, found "
+//						+ leftType + " and " + rightType, file.filename, expr);
 			}
 			return leftType;
 		default:
@@ -309,8 +321,8 @@ public class TypeChecker {
 		List<Expr> arguments = expr.getArguments();
 		List<WhileFile.Parameter> parameters = fn.parameters;
 		if (arguments.size() != parameters.size()) {
-			syntaxError("incorrect number of arguments to function",
-					file.filename, expr);
+//			syntaxError("incorrect number of arguments to function",
+//					file.filename, expr);
 		}
 		for (int i = 0; i != parameters.size(); ++i) {
 			Type argument = check(arguments.get(i), environment);
@@ -357,8 +369,8 @@ public class TypeChecker {
 		Type.Record recordType = (Type.Record) checkInstanceOf(srcType,
 				expr.getSource(), Type.Record.class);
 		if (!recordType.getFields().containsKey(expr.getName())) {
-			syntaxError("expected type to contain field: " + expr.getName(),
-					file.filename, expr);
+//			syntaxError("expected type to contain field: " + expr.getName(),
+//					file.filename, expr);
 		}
 		return recordType.getFields().get(expr.getName());
 	}
@@ -396,10 +408,19 @@ public class TypeChecker {
 	}
 
 	public Type check(Expr.Variable expr, Map<String, Type> environment) {
+
 		Type type = environment.get(expr.getName());
+
 		if (type == null) {
-			syntaxError("unknown variable encountered: " + expr.getName(),
-					file.filename, expr);
+			ConstDecl cd = constants.get(expr.getName());
+			if (cd != null) {
+				type = check(cd.constant, environment);
+			}
+		}
+
+		if (type == null) {
+//			syntaxError("unknown variable encountered: " + expr.getName(),
+//					file.filename, expr);
 		}
 		return type;
 	}
@@ -423,8 +444,8 @@ public class TypeChecker {
 				Type body = types.get(tn.getName()).type;
 				return checkInstanceOf(body, element, instances);
 			} else {
-				syntaxError("unknown type encountered: " + type, file.filename,
-						element);
+//				syntaxError("unknown type encountered: " + type, file.filename,
+//						element);
 			}
 		}
 		for (Class<?> instance : instances) {
@@ -467,8 +488,8 @@ public class TypeChecker {
 			}
 		}
 
-		syntaxError("expected instance of " + msg + ", found " + type,
-				file.filename, element);
+//		syntaxError("expected instance of " + msg + ", found " + type,
+//				file.filename, element);
 		return null;
 	}
 
@@ -484,8 +505,8 @@ public class TypeChecker {
 	 */
 	public void checkSubtype(Type t1, Type t2, SyntacticElement element) {
 		if (!isSubtype(t1, t2, element)) {
-			syntaxError("expected type " + t1 + ", found " + t2, file.filename,
-					element);
+//			syntaxError("expected type " + t1 + ", found " + t2, file.filename,
+//					element);
 		}
 	}
 
@@ -509,6 +530,10 @@ public class TypeChecker {
 		} else if (t1 instanceof Type.Char && t2 instanceof Type.Char) {
 			// OK
 		} else if (t1 instanceof Type.Int && t2 instanceof Type.Int) {
+			// OK
+		} else if (t1 instanceof Type.Real && t2 instanceof Type.Int) {
+			// OK
+		} else if (t1 instanceof Type.Int && t2 instanceof Type.Real) {
 			// OK
 		} else if (t1 instanceof Type.Real && t2 instanceof Type.Real) {
 			// OK
@@ -542,8 +567,8 @@ public class TypeChecker {
 				Type body = types.get(tn.getName()).type;
 				return isSubtype(body, t2, element);
 			} else {
-				syntaxError("unknown type encountered: " + t1, file.filename,
-						element);
+//				syntaxError("unknown type encountered: " + t1, file.filename,
+//						element);
 			}
 		} else if (t2 instanceof Type.Named) {
 			Type.Named tn = (Type.Named) t2;
@@ -551,8 +576,8 @@ public class TypeChecker {
 				Type body = types.get(tn.getName()).type;
 				return isSubtype(t1, body, element);
 			} else {
-				syntaxError("unknown type encountered: " + t2, file.filename,
-						element);
+//				syntaxError("unknown type encountered: " + t2, file.filename,
+//						element);
 			}
 		} else if (t1 instanceof Type.Union) {
 			Type.Union u1 = (Type.Union) t1;
@@ -630,8 +655,8 @@ public class TypeChecker {
 					checkCast(p.getValue(), l2Fields.get(p.getKey()), element);
 				}
 			} else {
-				syntaxError("expected type " + t1 + ", found " + t2,
-						file.filename, element);
+//				syntaxError("expected type " + t1 + ", found " + t2,
+//						file.filename, element);
 			}
 		} else if (t1 instanceof Type.Named) {
 			Type.Named tn = (Type.Named) t1;
@@ -639,8 +664,8 @@ public class TypeChecker {
 				Type body = types.get(tn.getName()).type;
 				checkCast(body, t2, element);
 			} else {
-				syntaxError("unknown type encountered: " + t1, file.filename,
-						element);
+//				syntaxError("unknown type encountered: " + t1, file.filename,
+//						element);
 			}
 		} else if (t2 instanceof Type.Named) {
 			Type.Named tn = (Type.Named) t2;
@@ -648,12 +673,12 @@ public class TypeChecker {
 				Type body = types.get(tn.getName()).type;
 				checkCast(t1, body, element);
 			} else {
-				syntaxError("unknown type encountered: " + t2, file.filename,
-						element);
+//				syntaxError("unknown type encountered: " + t2, file.filename,
+//						element);
 			}
 		} else {
-			syntaxError("expected type " + t1 + ", found " + t2, file.filename,
-					element);
+//			syntaxError("expected type " + t1 + ", found " + t2, file.filename,
+//					element);
 		}
 	}
 }

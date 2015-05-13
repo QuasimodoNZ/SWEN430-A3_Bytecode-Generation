@@ -11,7 +11,7 @@ import java.io.StringReader;
 
 public class TestHarness {
 
-	private static final String JASM_JAR = "../../lib/jasm-v0.1.1.jar".replace(
+	private static final String JASM_JAR = "../../lib/jasm-v0.1.7.jar".replace(
 			'/', File.separatorChar);
 	private static final String JX86_JAR = "../../lib/jx86-v0.1.0.jar".replace(
 			'/', File.separatorChar);

@@ -128,9 +128,9 @@ public class Main {
 			return false;
 		} catch (Exception e) {
 			errout.println("Error: " + e.getMessage());
-			if (verbose) {
+//			if (verbose) {
 				e.printStackTrace(errout);
-			}
+//			}
 			return false;
 		}
 
