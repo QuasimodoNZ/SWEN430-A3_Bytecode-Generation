@@ -4,6 +4,7 @@ import static whilelang.util.SyntaxError.internalFailure;
 import jasm.attributes.Code;
 import jasm.lang.Bytecode;
 import jasm.lang.Bytecode.BinOp;
+import jasm.lang.Bytecode.Invoke;
 import jasm.lang.Bytecode.Label;
 import jasm.lang.Bytecode.LoadConst;
 import jasm.lang.ClassFile;
@@ -11,6 +12,8 @@ import jasm.lang.ClassFile.Method;
 import jasm.lang.JvmType;
 import jasm.lang.JvmType.Bool;
 import jasm.lang.JvmType.Clazz;
+import jasm.lang.JvmType.Function;
+import jasm.lang.JvmType.Reference;
 import jasm.lang.JvmTypes;
 import jasm.lang.Modifier;
 
@@ -21,8 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.transform.Source;
+
 import whilelang.lang.Expr;
 import whilelang.lang.Expr.LVal;
+import whilelang.lang.Expr.UOp;
 import whilelang.lang.Stmt;
 import whilelang.lang.Type;
 import whilelang.lang.WhileFile;
@@ -37,6 +43,13 @@ import whilelang.lang.WhileFile.Parameter;
  * 
  */
 public class ClassFileWriter {
+	private static Map<String, JvmType> methodReturnTypes = new HashMap<String, JvmType>();//Method name to return type
+	
+
+	JvmType.Clazz JAVA_LANG_SYSTEM = new JvmType.Clazz("java.lang", "System"),
+			JAVA_IO_PRINTSTREAM = new JvmType.Clazz("java.io", "PrintStream"),
+			JAVA_UTIL_ARRAYLIST = new JvmType.Clazz("java.util", "ArrayList"),
+			JAVA_UTIL_HASHMAP = new JvmType.Clazz("java.io", "HashMap");
 
 	jasm.io.ClassFileWriter writer;
 
@@ -55,21 +68,28 @@ public class ClassFileWriter {
 		String className = sourceFile.filename;
 		className = className.substring(className.lastIndexOf('/') + 1,
 				className.lastIndexOf('.'));
-		jasm.lang.ClassFile cf = new ClassFile(49, new JvmType.Clazz("",
-				className), JvmTypes.JAVA_LANG_OBJECT, Collections.EMPTY_LIST,
-				modifiers);
+
+		JvmType.Clazz thIs = new JvmType.Clazz("", className);
+		jasm.lang.ClassFile cf = new ClassFile(49, thIs,
+				JvmTypes.JAVA_LANG_OBJECT, Collections.EMPTY_LIST, modifiers);
+		
+		methodReturnTypes = new HashMap<String, JvmType>();
+		for(Decl function : sourceFile.declarations)
+			if(function instanceof FunDecl)
+				methodReturnTypes.put(function.name(), getJvmType(((FunDecl) function).ret));
 
 		for (Decl function : sourceFile.declarations) {
 			if (function instanceof FunDecl) {
-				addMethod(cf, (FunDecl) function);
+				addMethod(cf, (FunDecl) function, thIs, sourceFile);
 			}
 		}
 
 		writer.write(cf);
 	}
 
-	private void addMethod(ClassFile cf, FunDecl function) {
-		MethodPage mp = new MethodPage();
+	private void addMethod(ClassFile cf, FunDecl function, JvmType.Clazz thIs,
+			WhileFile sourceFile) {
+		MethodPage mp = new MethodPage(thIs, sourceFile);
 
 		// TODO need to figure out return types, parameters and also modifiers
 		String methodName = function.name();
@@ -173,7 +193,7 @@ public class ClassFileWriter {
 		addBytecodes(stmt.getCondition(), mp);
 
 		String falseLabel = mp.next(), endLabel = mp.next();
-		mp.bc.add(new Bytecode.IfCmp(Bytecode.IfCmp.NE, new JvmType.Bool(),
+		mp.bc.add(new Bytecode.If(Bytecode.IfMode.EQ,
 				falseLabel));
 
 		// execute true branch
@@ -204,11 +224,6 @@ public class ClassFileWriter {
 	}
 
 	private void addBytecodes(Stmt.Print stmt, MethodPage mp) {
-
-		JvmType.Clazz JAVA_LANG_SYSTEM = new JvmType.Clazz("java.lang",
-				"System"), JAVA_IO_PRINTSTREAM = new JvmType.Clazz("java.io",
-				"PrintStream");
-
 		mp.bc.add(new Bytecode.GetField(JAVA_LANG_SYSTEM, "out",
 				JAVA_IO_PRINTSTREAM, Bytecode.FieldMode.STATIC));
 
@@ -374,8 +389,15 @@ public class ClassFileWriter {
 	}
 
 	private JvmType addBytecodes(Expr.Invoke expr, MethodPage mp) {
-		// TODO
-		return null;
+		List<JvmType> argumentTypes = new ArrayList<JvmType>();
+		for (Expr arg : expr.getArguments())
+			argumentTypes.add(addBytecodes(arg, mp));
+
+		String methodName = expr.getName();
+		JvmType.Function func = new JvmType.Function(methodReturnTypes.get(methodName), argumentTypes);
+
+		 mp.bc.add(new Bytecode.Invoke(mp.thIs, methodName, func, Bytecode.InvokeMode.STATIC));
+		return methodReturnTypes.get(methodName);
 	}
 
 	private JvmType addBytecodes(Expr.IndexOf expr, MethodPage mp) {
@@ -404,6 +426,28 @@ public class ClassFileWriter {
 		case NOT:
 			mp.bc.add(new Bytecode.LoadConst(true));
 			mp.bc.add(new Bytecode.BinOp(Bytecode.BinOp.XOR, type));
+			return type;
+		case NEG:
+			mp.bc.add(new Bytecode.Neg(type));
+			return type;
+		case LENGTHOF:
+			Reference ref;
+			String methodName;
+			if (JvmTypes.isJavaLangString(type)) {
+				ref = JvmTypes.JAVA_LANG_STRING;
+				methodName = "length";
+			} else if (JvmTypes.isJavaLangObject(type)) {
+				ref = null; // TODO figure out if list or map
+				methodName = "size";
+			} else {
+				// TODO throw error
+				ref = null;
+				methodName = null;
+			}
+			mp.bc.add(new Bytecode.Invoke(ref, methodName,
+					new JvmType.Function(new JvmType.Int()),
+					Bytecode.InvokeMode.VIRTUAL));
+			type = new JvmType.Int();
 		}
 		// TODO
 		return type;
@@ -439,12 +483,9 @@ public class ClassFileWriter {
 			return new JvmType.Double();
 		} else if (value instanceof String || value instanceof Type.Strung) {
 			return JvmTypes.JAVA_LANG_STRING;
-		}
-
-		else if (value instanceof Type.Void) {
+		} else if (value instanceof Type.Void) {
 			return new JvmType.Void();
 		}
-		// TODO Auto-generated method stub
 		return null;
 	}
 
@@ -456,12 +497,17 @@ public class ClassFileWriter {
 
 	private class MethodPage {
 
+		public Clazz thIs;
+		public WhileFile sourceFile;
 		public List<Bytecode> bc;
+		
 		public Map<String, Integer> localIndexs;
 		public int nextIndex;
 		private int labelCounter;
 
-		private MethodPage() {
+		private MethodPage(Clazz thIs, WhileFile sourceFile) {
+			this.thIs = thIs;
+			this.sourceFile = sourceFile;
 			localIndexs = new HashMap<String, Integer>();
 			nextIndex = 0;
 			bc = new ArrayList<Bytecode>();

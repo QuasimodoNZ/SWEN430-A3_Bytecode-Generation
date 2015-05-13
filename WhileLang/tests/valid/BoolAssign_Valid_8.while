@@ -1,0 +1,12 @@
+int f(){
+	return 1;
+}
+
+int g(int i){
+	return i;
+}
+
+void main(){
+	print f();
+	print g(2);
+}
